@@ -2,6 +2,8 @@ package com.it355.movie_management.services;
 
 import com.it355.movie_management.common.enums.UserRole;
 import com.it355.movie_management.dtos.auth.LoginUserResponseDto;
+import com.it355.movie_management.dtos.auth.RegisterUserResponseDto;
+import com.it355.movie_management.dtos.user.UserDto;
 import com.it355.movie_management.exceptions.ConflictException;
 import com.it355.movie_management.exceptions.NotAuthorizedException;
 import com.it355.movie_management.exceptions.NotFoundException;
@@ -17,13 +19,15 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 public class AuthService {
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final JWTUtil jwtUtil;
 
-    public AuthService(UserRepository userRepository) {
+    public AuthService(UserRepository userRepository, JWTUtil jwtUtil) {
         this.userRepository = userRepository;
         this.passwordEncoder = new BCryptPasswordEncoder();
+        this.jwtUtil = jwtUtil;
     }
 
-    public User register(String username, String password) {
+    public RegisterUserResponseDto register(String username, String password) {
         if (userRepository.existsByUsername(username)) {
             throw new ConflictException("User already exists.");
         }
@@ -33,7 +37,9 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(password));
         user.setRoleId(UserRole.Client);
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        return new RegisterUserResponseDto(savedUser.getId(), savedUser.getUsername(), savedUser.getRoleId());
     }
 
     public LoginUserResponseDto login(String username, String password, HttpServletResponse response) {
@@ -47,7 +53,7 @@ public class AuthService {
             throw new NotAuthorizedException("Invalid credentials.");
         }
 
-        String token = JWTUtil.generateToken(user.getId(), user.getUsername(), user.getRoleId().ordinal());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRoleId().ordinal());
 
         Cookie cookie = new Cookie("token", token);
         cookie.setHttpOnly(true);
@@ -57,5 +63,19 @@ public class AuthService {
         response.addCookie(cookie);
 
         return new LoginUserResponseDto(user.getId(), user.getUsername(), user.getRoleId());
+    }
+
+    public void logout(HttpServletResponse response) {
+        Cookie cookie = new Cookie("token", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+    }
+
+    public UserDto getUserById(Long id) {
+        User user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("User don't exists."));
+        return new UserDto(user.getId(), user.getUsername(), user.getRoleId());
     }
 }

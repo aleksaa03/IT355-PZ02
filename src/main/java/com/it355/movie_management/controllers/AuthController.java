@@ -1,14 +1,12 @@
 package com.it355.movie_management.controllers;
 
-import com.it355.movie_management.dtos.UserPayload;
+import com.it355.movie_management.common.enums.UserLogType;
 import com.it355.movie_management.dtos.auth.LoginUserResponseDto;
 import com.it355.movie_management.dtos.auth.RegisterUserResponseDto;
 import com.it355.movie_management.dtos.user.UserDto;
 import com.it355.movie_management.exceptions.BadRequestException;
 import com.it355.movie_management.services.AuthService;
-import com.it355.movie_management.utils.JWTUtil;
 import com.it355.movie_management.utils.StringUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,13 +14,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-public class AuthController {
+public class AuthController extends PortalController {
     private final AuthService authService;
-    private final JWTUtil jWTUtil;
 
-    public AuthController(AuthService authService, JWTUtil jWTUtil) {
+    public AuthController(AuthService authService) {
         this.authService = authService;
-        this.jWTUtil = jWTUtil;
     }
 
     @PostMapping("/register")
@@ -37,6 +33,11 @@ public class AuthController {
             throw new BadRequestException("Username and password must be minimun 5 characters long.");
 
         RegisterUserResponseDto registeredUser = authService.register(username, password);
+
+        this.addUserLog(registeredUser.getId(),
+                UserLogType.Auth,
+                "User registered",
+                String.format("User %s registered successfully", registeredUser.getUsername()));
 
         return ResponseEntity.status(201).body(Map.of(
                 "user", Map.of(
@@ -61,6 +62,11 @@ public class AuthController {
 
         LoginUserResponseDto loggedUser = authService.login(username, password, response);
 
+        this.addUserLog(loggedUser.getId(),
+                UserLogType.Auth,
+                "User logged in",
+                String.format("User %s logged in successfully", loggedUser.getUsername()));
+
         return ResponseEntity.status(200).body(Map.of(
                 "user", Map.of(
                         "id", loggedUser.getId(),
@@ -74,13 +80,17 @@ public class AuthController {
     @DeleteMapping("/logout")
     public ResponseEntity<?> logout(HttpServletResponse response) {
         authService.logout(response);
+
+        this.addUserLog(UserLogType.Auth,
+                "User logged out",
+                String.format("User %s logged out successfully", this.currentUser().username()));
+
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/check-auth")
-    public ResponseEntity<?> checkAuth(HttpServletRequest request) {
-        UserPayload currentUser = (UserPayload) request.getAttribute("currentUser");
-        UserDto user = authService.getUserById(currentUser.id());
+    public ResponseEntity<?> checkAuth() {
+        UserDto user = authService.getUserById(this.currentUser().id());
 
         return ResponseEntity.ok(Map.of("user", Map.of(
                 "id", user.getId(),

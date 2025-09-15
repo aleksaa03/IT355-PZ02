@@ -13,4 +13,14 @@ public enum UserRole {
     public int getValue() {
         return value;
     }
+
+    public static UserRole fromNum(int num) {
+        for (UserRole role : UserRole.values()) {
+            if (role.value == num) {
+                return role;
+            }
+        }
+
+        throw new IllegalArgumentException("No UserRole with id " + num);
+    }
 }

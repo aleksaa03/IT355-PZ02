@@ -1,7 +1,7 @@
 package com.it355.movie_management.controllers;
 
 import com.it355.movie_management.common.config.AppConfig;
-import com.it355.movie_management.dtos.UserPayload;
+import com.it355.movie_management.common.enums.UserLogType;
 import com.it355.movie_management.dtos.comment.CommentResponseDto;
 import com.it355.movie_management.dtos.movie.MovieCreateRequestDto;
 import com.it355.movie_management.dtos.movie.MovieDto;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/movies")
-public class MovieController {
+public class MovieController extends PortalController {
     private final MovieService movieService;
     private final AppConfig config;
 
@@ -74,13 +74,12 @@ public class MovieController {
     }
 
     @GetMapping("/{movieId}")
-    public ResponseEntity<?> getMovie(@PathVariable Long movieId, HttpServletRequest request) {
+    public ResponseEntity<?> getMovie(@PathVariable Long movieId) {
         if (movieId == null) {
             throw new BadRequestException("Movie id must be number.");
         }
 
-        UserPayload currentUser = (UserPayload) request.getAttribute("currentUser");
-        MovieWatchedDto movie = movieService.getMovie(movieId, currentUser);
+        MovieWatchedDto movie = movieService.getMovie(movieId, this.currentUser());
 
         return ResponseEntity.ok().body(Map.of("movie", movie));
     }
@@ -97,10 +96,7 @@ public class MovieController {
     }
 
     @PostMapping("/{movieId}/comments")
-    public ResponseEntity<?> addComment(@PathVariable Long movieId,
-                                        @RequestBody Map<String, String> body,
-                                        HttpServletRequest request) {
-
+    public ResponseEntity<?> addComment(@PathVariable Long movieId, @RequestBody Map<String, String> body) {
         if (movieId == null) {
             throw new BadRequestException("Movie id must be number.");
         }
@@ -111,9 +107,11 @@ public class MovieController {
             throw new BadRequestException("Comment cannot be empty.");
         }
 
-        UserPayload currentUser = (UserPayload) request.getAttribute("currentUser");
+        movieService.addComment(this.currentUser().id(), movieId, comment);
 
-        movieService.addComment(currentUser.id(), movieId, comment);
+        this.addUserLog(UserLogType.Add,
+                String.format("Added comment to movie with ID %s", movieId),
+                String.format("Comment: %s", comment));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Comment added successfully."));
     }
@@ -130,16 +128,14 @@ public class MovieController {
     }
 
     @DeleteMapping("/{movieId}/comments/{commentId}")
-    public ResponseEntity<?> deleteComment(@PathVariable Long movieId,
-                                           @PathVariable Long commentId,
-                                           HttpServletRequest request) {
+    public ResponseEntity<?> deleteComment(@PathVariable Long movieId, @PathVariable Long commentId) {
         if (movieId == null || commentId == null) {
             throw new BadRequestException("Movie id and comment id must be numbers.");
         }
 
-        UserPayload currentUser = (UserPayload) request.getAttribute("currentUser");
+        movieService.deleteComment(movieId, commentId, this.currentUser().id());
 
-        movieService.deleteComment(movieId, commentId, currentUser.id());
+        this.addUserLog(UserLogType.Delete, String.format("Deleted comment from movie with ID %s", movieId));
 
         return ResponseEntity.ok().body(Map.of("message", "Comment was removed."));
     }

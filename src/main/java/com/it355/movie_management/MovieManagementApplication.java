@@ -22,7 +22,7 @@ public class MovieManagementApplication {
     public FilterRegistrationBean<AuthFilter> jwtFilter() {
         FilterRegistrationBean<AuthFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(authFilter);
-        registrationBean.addUrlPatterns("/logout", "/check-auth", "/movies/*", "/movies/*/*", "/watch-list/*", "/watch-list/*/*");
+        registrationBean.addUrlPatterns("/logout", "/check-auth", "/movies/*", "/movies/*/*", "/watch-list/*", "/watch-list/*/*", "/users/*", "/users/*/*", "/user-logs/*", "/user-logs/*/*");
         return registrationBean;
     }
 }

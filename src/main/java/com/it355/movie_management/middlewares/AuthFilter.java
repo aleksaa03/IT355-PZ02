@@ -75,10 +75,17 @@ public class AuthFilter extends OncePerRequestFilter {
     }
 
     private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
+        Cookie cookie = new Cookie("token", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
         response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
+        response.addCookie(cookie);
         response.getWriter().write("{\"message\":\"" + message + "\"}");
     }
 }

@@ -1,6 +1,5 @@
 package com.it355.movie_management.services;
 
-import com.it355.movie_management.common.config.AppConfig;
 import com.it355.movie_management.dtos.UserPayload;
 import com.it355.movie_management.dtos.comment.CommentResponseDto;
 import com.it355.movie_management.dtos.movie.MovieCreateRequestDto;
@@ -13,17 +12,9 @@ import com.it355.movie_management.repositories.CommentRepository;
 import com.it355.movie_management.repositories.MovieRepository;
 import com.it355.movie_management.repositories.UserRepository;
 import com.it355.movie_management.repositories.WatchlistRepository;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -32,14 +23,14 @@ public class MovieService {
     private final WatchlistRepository watchlistRepository;
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
-    private final AppConfig config;
+    private final OmdbApiService omdbApiService;
 
-    public MovieService(MovieRepository movieRepository, WatchlistRepository watchlistRepository, CommentRepository commentRepository, UserRepository userRepository, AppConfig config) {
+    public MovieService(MovieRepository movieRepository, WatchlistRepository watchlistRepository, CommentRepository commentRepository, UserRepository userRepository, OmdbApiService omdbApiService) {
         this.movieRepository = movieRepository;
         this.watchlistRepository = watchlistRepository;
         this.commentRepository = commentRepository;
         this.userRepository = userRepository;
-        this.config = config;
+        this.omdbApiService = omdbApiService;
     }
 
     public MovieDto createMovie(MovieCreateRequestDto model) {
@@ -81,44 +72,18 @@ public class MovieService {
             return new MovieDto(movie.get());
         }
 
-        String url = "http://www.omdbapi.com/?i=" + imdbId + "&apikey=" + config.getApiKey();
-        RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new BadRequestException("Failed to fetch from OMDB.");
-        }
-
-        Map<String, Object> content = response.getBody();
-        if ("False".equals(content.get("Response"))) {
-            throw new BadRequestException((String) content.get("Error"));
-        }
-
-        String releasedStr = (String) content.get("Released");
-        LocalDate released = null;
-        if (releasedStr != null && !releasedStr.equalsIgnoreCase("N/A")) {
-            try {
-                released = LocalDate.parse(releasedStr, DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH));
-            } catch (DateTimeParseException e) {
-                throw new BadRequestException("Invalid date format for released date.");
-            }
-        }
+        MovieDto result = omdbApiService.getMovieByImdbId(imdbId);
 
         Movie newMovie = new Movie();
-        newMovie.setTitle((String) content.get("Title"));
-        newMovie.setImg((String) content.get("Poster"));
+        newMovie.setTitle(result.getTitle());
+        newMovie.setImg(result.getImg());
         newMovie.setImdbId(imdbId);
-        newMovie.setType((String) content.get("Type"));
-        newMovie.setReleased(released);
-        String imdbRatingStr = (String) content.get("imdbRating");
-        if (imdbRatingStr != null && !imdbRatingStr.equalsIgnoreCase("N/A")) {
-            newMovie.setImdbRating(new BigDecimal(imdbRatingStr));
-        } else {
-            newMovie.setImdbRating(null);
-        }
-        newMovie.setPlot((String) content.get("Plot"));
-        newMovie.setActors((String) content.get("Actors"));
-        newMovie.setGenre((String) content.get("Genre"));
+        newMovie.setType(result.getType());
+        newMovie.setReleased(result.getReleased());
+        newMovie.setImdbRating(result.getImdbRating());
+        newMovie.setPlot(result.getPlot());
+        newMovie.setActors(result.getActors());
+        newMovie.setGenre(result.getGenre());
 
         Movie savedMovie = movieRepository.save(newMovie);
 

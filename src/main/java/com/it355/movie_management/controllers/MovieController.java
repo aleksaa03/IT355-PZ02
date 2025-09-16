@@ -1,6 +1,5 @@
 package com.it355.movie_management.controllers;
 
-import com.it355.movie_management.common.config.AppConfig;
 import com.it355.movie_management.common.enums.UserLogType;
 import com.it355.movie_management.dtos.comment.CommentResponseDto;
 import com.it355.movie_management.dtos.movie.MovieCreateRequestDto;
@@ -8,12 +7,12 @@ import com.it355.movie_management.dtos.movie.MovieDto;
 import com.it355.movie_management.dtos.movie.MovieWatchedDto;
 import com.it355.movie_management.exceptions.BadRequestException;
 import com.it355.movie_management.services.MovieService;
+import com.it355.movie_management.services.OmdbApiService;
 import com.it355.movie_management.utils.StringUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -22,11 +21,11 @@ import java.util.Map;
 @RequestMapping("/movies")
 public class MovieController extends PortalController {
     private final MovieService movieService;
-    private final AppConfig config;
+    private final OmdbApiService omdbApiService;
 
-    public MovieController(MovieService movieService, AppConfig config) {
+    public MovieController(MovieService movieService, OmdbApiService omdbApiService) {
         this.movieService = movieService;
-        this.config = config;
+        this.omdbApiService = omdbApiService;
     }
 
     @PostMapping()
@@ -44,33 +43,7 @@ public class MovieController extends PortalController {
             throw new BadRequestException("Search query must be at least 3 char long.");
         }
 
-        String query = String.format("apikey=%s&s=%s&page=%d", config.getApiKey(), search, page);
-        if (type != null && !type.isEmpty()) {
-            query += "&type=" + type;
-        }
-
-        String url = "http://www.omdbapi.com/?" + query;
-
-        RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new BadRequestException("Error fetching data from OMDB API.");
-        }
-
-        Map<String, Object> content = response.getBody();
-        if ("True".equals(content.get("Response"))) {
-            Map<String, Object> result = Map.of(
-                    "movies", content.get("Search"),
-                    "totalResults", Integer.parseInt(content.get("totalResults").toString())
-            );
-            return ResponseEntity.ok(result);
-        } else if ("False".equals(content.get("Response"))) {
-            throw new BadRequestException(content.get("Error").toString());
-        }
-
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", "Internal server error"));
+        return ResponseEntity.ok(omdbApiService.searchMovies(search, type, page));
     }
 
     @GetMapping("/{movieId}")

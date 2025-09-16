@@ -95,7 +95,7 @@ public class AuthController extends PortalController {
         return ResponseEntity.ok(Map.of("user", Map.of(
                 "id", user.getId(),
                 "username", user.getUsername(),
-                "roleId", user.getRoleId()
+                "roleId", user.getRoleId().ordinal()
         )));
     }
 }

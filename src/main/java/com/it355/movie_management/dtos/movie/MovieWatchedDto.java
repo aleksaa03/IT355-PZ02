@@ -19,12 +19,19 @@ public class MovieWatchedDto extends MovieDto {
                     BigDecimal imdbRating,
                     String plot,
                     String actors,
-                    String genre) {
+                    String genre,
+                    boolean watched) {
         super(id, title, img, imdbId, type, released, imdbRating, plot, actors, genre);
+        this.watched = watched;
     }
 
     public MovieWatchedDto(Movie movie) {
         super(movie);
+    }
+
+    public MovieWatchedDto(Movie movie, boolean watched) {
+        super(movie);
+        this.watched = watched;
     }
 
     public boolean isWatched() {

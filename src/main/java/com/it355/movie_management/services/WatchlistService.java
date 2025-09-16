@@ -1,6 +1,6 @@
 package com.it355.movie_management.services;
 
-import com.it355.movie_management.common.config.AppConfig;
+import com.it355.movie_management.dtos.movie.MovieDto;
 import com.it355.movie_management.dtos.movie.MovieWatchedDto;
 import com.it355.movie_management.exceptions.BadRequestException;
 import com.it355.movie_management.exceptions.NotFoundException;
@@ -9,73 +9,40 @@ import com.it355.movie_management.models.Watchlist;
 import com.it355.movie_management.repositories.MovieRepository;
 import com.it355.movie_management.repositories.UserRepository;
 import com.it355.movie_management.repositories.WatchlistRepository;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.math.BigDecimal;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 @Service
 public class WatchlistService {
     private final MovieRepository movieRepository;
     private final WatchlistRepository  watchlistRepository;
     private final UserRepository userRepository;
-    private final AppConfig config;
+    private final OmdbApiService omdbApiService;
 
-    public WatchlistService(MovieRepository movieRepository, WatchlistRepository watchlistRepository, UserRepository userRepository, AppConfig config) {
+    public WatchlistService(MovieRepository movieRepository, WatchlistRepository watchlistRepository, UserRepository userRepository, OmdbApiService omdbApiService) {
         this.movieRepository = movieRepository;
         this.watchlistRepository = watchlistRepository;
         this.userRepository = userRepository;
-        this.config = config;
+        this.omdbApiService = omdbApiService;
     }
 
     public void addToWatchlist(String imdbId, Long userId) {
         Movie movie = movieRepository.findByImdbId(imdbId).orElse(null);
 
         if (movie == null) {
-            RestTemplate restTemplate = new RestTemplate();
-            String url = "http://www.omdbapi.com/?i=" + imdbId + "&apikey=" + config.getApiKey();
-            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-
-            Map<String, Object> content = response.getBody();
-            if (content == null || "False".equals(content.get("Response"))) {
-                throw new BadRequestException("Movie not found: " + imdbId);
-            }
-
-            String releasedStr = (String) content.get("Released");
-            Date released = null;
-            if (releasedStr != null && !releasedStr.equalsIgnoreCase("N/A")) {
-                try {
-                    released = new SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH).parse(releasedStr);
-                } catch (ParseException e) {
-                    throw new BadRequestException("Invalid date format for released date.");
-                }
-            }
-
-            String imdbRatingStr = (String) content.get("imdbRating");
-            BigDecimal imdbRating = null;
-            try {
-                imdbRating = new BigDecimal(imdbRatingStr);
-            } catch (Exception ignored) {}
+            MovieDto result = omdbApiService.getMovieByImdbId(imdbId);
 
             movie = new Movie();
-            movie.setTitle((String) content.get("Title"));
-            movie.setImg((String) content.get("Poster"));
+            movie.setTitle(result.getTitle());
+            movie.setImg(result.getImg());
             movie.setImdbId(imdbId);
-            movie.setType((String) content.get("Type"));
-            movie.setReleased(LocalDate.ofInstant(released.toInstant(), ZoneId.systemDefault()));
-            movie.setImdbRating(imdbRating);
-            movie.setPlot((String) content.get("Plot"));
-            movie.setActors((String) content.get("Actors"));
-            movie.setGenre((String) content.get("Genre"));
+            movie.setType(result.getType());
+            movie.setReleased(result.getReleased());
+            movie.setImdbRating(result.getImdbRating());
+            movie.setPlot(result.getPlot());
+            movie.setActors(result.getActors());
+            movie.setGenre(result.getGenre());
 
             movieRepository.save(movie);
         }
@@ -94,7 +61,7 @@ public class WatchlistService {
 
     public List<MovieWatchedDto> getWatchlist(Long userId) {
         List<Watchlist> watchlist = watchlistRepository.findAllByUserIdWithMovie(userId);
-        return watchlist.stream().map(item -> new MovieWatchedDto(item.getMovie())).toList();
+        return watchlist.stream().map(item -> new MovieWatchedDto(item.getMovie(), item.isWatched())).toList();
     }
 
     public void updateWatchStatus(Long movieId, Long userId, Boolean watched) {
